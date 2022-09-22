@@ -8,14 +8,16 @@ const tweakpane = require('tweakpane');
 const settings = {
   dimensions: [ 1080, 1080 ],
   animate: true,
-  duration: 10,
-  fps: 30,
+  duration: 30,
+  fps: 24,
 };
 
 let manager;
 let img;
 let img2;
 let lfo;
+
+let animActors = new Array();
 
 const params = {
   freq: 0.3,
@@ -25,7 +27,7 @@ const params = {
   crossfade: 0,
   noiseFact: 0.5,
   displace: 0.0,
-  radius: 0.5,
+  radius: 1,
   colorNoise: 4.0,
   colFilter: 0.2,
   boost: 2.5,
@@ -33,8 +35,24 @@ const params = {
   gravX: 32,
   gravY: 32,
   gravAmp: 0,
-  lineColor: {r: 1, g: 0, b: 0.33},
+  lineColor: {r: 140, g: 46, b: 77},
+  actorCount: 0,
+  maxActors: 255,
+  lastFrame: 0,
+  fps: 0,
+  clear: true,
 };
+
+const start = async () => {
+  //img = await loadImage('putty-128.png');
+  
+  lfo = new LFO(params.lfoFreq, params.lfoAmp);
+  animActors.push(new AnimStar(settings.dimensions[0] / 2, settings.dimensions[1] / 2));
+
+  //console.log(img);
+  manager = await canvasSketch(sketch, settings);
+};
+
 
 const sketch = ({ context, width, height }) => {
   const cell = 16;
@@ -47,31 +65,77 @@ const sketch = ({ context, width, height }) => {
     
     if(!params.animate) return;
 
-    if(playhead < 0.1) {
+    params.fps = 1000 / (performance.now() - params.lastFrame);
+    params.lastFrame = performance.now();
+
+    if(params.clear || playhead < 0.1) {
       context.fillStyle = 'black';
       context.fillRect(0, 0, width, height);
     }
     lfo.next(playhead);
 
     // Plot line, nomatter the grid
-    context.save();
-    context.translate(random.range(0, 1080), width/2);
-    context.fillStyle = `rgb(${params.lineColor.r}, ${params.lineColor.g}, ${params.lineColor.b})`;;
-    context.fillRect(0, 0, 16, 16);
-    context.restore();
+    
+    //let maxSpawn = 5;
+    for(let i = animActors.length - 1; i >= 0; i--) {
+      let ia = animActors[i];
 
-    for(let i = 0; i < numCells; i++) {
+      if(!ia.isActive() || ia.color.getIntensity() < params.colFilter) {
+        animActors.splice(i, 1);
+        continue;
+      }
+
+      context.save();
+      context.beginPath();
+      context.translate(ia.loc.x, ia.loc.y);
+      //console.log(ia);
+      context.fillStyle = ia.color.toString();
+      //context.fillRect(0, 0, 32, 32);
+      //const rad = cell * params.radius;
+      context.rotate(ia.radius * 20);
+      let shadowColor = ia.color.copy();
+      shadowColor.modify(1.3);
+      context.shadowColor = shadowColor.toString();
+      context.shadowBlur = ia.radius * cell;
+
+      context.arc(0, 0, ia.radius * cell, 0, Math.PI * 2);
+      context.fill();
+      context.closePath();
+      context.restore();
+
+      r = ia.next(playhead, width, height);
+      if(r && animActors.length < params.maxActors)
+        animActors.push(r);
+    }
+
+    //if(animActors.length > 100) animActors.splice(0, animActors.length-100);
+    params.actorCount = animActors.length;
+
+    if(animActors.length == 0)
+      animActors.push(new AnimStar(settings.dimensions[0] / 2, settings.dimensions[1] / 2));
+
+
+    //context.translate(random.noise2D(playhead, 0) * width, random.noise2D(playhead, 0) * height);
+    /*context.translate(width/2, height/2);
+    context.translate(random.noise2D(Math.sin(playhead), 0) * 100, random.noise2D(playhead, 0) * 100);
+    context.rotate(random.noise2D(playhead, 0) * 100);
+    context.fillStyle = `rgb(${params.lineColor.r}, ${params.lineColor.g}, ${params.lineColor.b})`;;
+    context.fillRect(0, 0, 98, 98);
+    */
+    
+
+    /*for(let i = 0; i < numCells; i++) {
       const col = i % cols;
       const row = Math.floor(i / cols);
 
       const x = col * cell;
       const y = row * cell;
 
-      let rgb  = new RGB(255, 255, 255);
+      let rgb  = RGB.newRandom();
 
       //const n = Math.max(params.noiseFact, random.noise2D(x + (Math.sin(playhead * Math.PI) * 3), y, params.freq) + 0.3);
 
-      rgb.modify(random.noise2D(x + Math.sin(playhead * Math.PI), y - Math.sin(playhead * Math.PI)) * 0.6);
+      //rgb.addNoise(random.noise2D(x));
       
 
       context.fillStyle = rgb.toString();
@@ -98,7 +162,7 @@ const sketch = ({ context, width, height }) => {
       //context.arc(0, 0, rad, 0, Math.PI * 2);
       //context.rect(x, y, cell, cell);
       context.fillStyle = rgb.toString();
-      context.fillRect(0, 0, cell, cell);
+      context.fillRect(0, 0, random.range(4, cell), random.range(4, cell));
 
 
       //cos(xy + cos(4y))2 + sin(y) = 0.4x + 0.1y^2
@@ -108,7 +172,7 @@ const sketch = ({ context, width, height }) => {
       context.restore();
 
       
-    }
+    }*/
   };
 };
 
@@ -119,6 +183,10 @@ class RGB {
     this.b = b;
   }
 
+  copy() {
+    return new RGB(this.r, this.g, this.b);
+  }
+
   modify(f) {
     this.r *= f;
     this.g *= f;
@@ -126,9 +194,9 @@ class RGB {
   }
 
   addNoise(f) {
-    this.r *= random.range(f, 1);
-    this.g *= random.range(f, 1);
-    this.b *= random.range(f, 1);
+    this.r *= random.range(1-f, 1+f);
+    this.g *= random.range(1-f, 1+f);
+    this.b *= random.range(1-f, 1+f);
   }
 
   getIntensity() {
@@ -147,6 +215,54 @@ class RGB {
 
     return new RGB(r, g, b);
   }
+
+  static newRandom() {
+    return new RGB(random.range(32, 255), random.range(32, 255), random.range(32, 255));
+  }
+}
+
+class AnimStar {
+  constructor(x, y) {
+    this.loc = new Vector(x, y);
+    this.dir = new Vector(random.range(-20, 20), random.range(-20, 20));
+    this.color = new RGB(random.range(64, 255), random.range(64, 255), random.range(64, 255));
+    this.time = random.range(150, 1000);
+    this.radius = random.range(0.2, 5.0);
+  }
+
+  isActive() {
+    return (this.time > 0);
+  }
+
+  next(frame, width, height) {
+    this.loc.add(this.dir);
+    this.time--;
+
+    let collide = false;
+
+    if(this.loc.x <= 0 || this.loc.x >= width) {
+      this.loc.x = (this.loc.x <= 0 ? 0 : width);
+      this.dir.x *= -1;
+      collide = true;
+    }
+    if(this.loc.y <= 0 || this.loc.y >= height) {
+      this.loc.y = (this.loc.y <= 0 ? 0 : height);
+      this.dir.y *= -1;
+      collide = true;
+    }
+
+    if(collide) {
+      let spawn = new AnimStar(this.loc.x, this.loc.y);
+      spawn.time = this.time + 2;
+      spawn.color = this.color;
+      spawn.color.addNoise(0.3);
+
+      return spawn;
+    }
+
+    return null;
+  }
+
 }
 
 class LFO {
@@ -172,6 +288,11 @@ class Vector {
   constructor(x, y) {
     this.x = x;
     this.y = y;
+  }
+
+  add(v) {
+    this.x += v.x;
+    this.y += v.y;
   }
 
   getDistance(v) {
@@ -213,6 +334,9 @@ const createPane = () => {
   folder.addInput(params, 'colFilter', {min:0, max: 1, step: 0.1});
   folder.addInput(params, 'crossfade', {min:0, max: 1, step: 0.1});
   folder.addInput(params, 'lineColor');
+  folder.addInput(params, 'clear');
+  folder.addMonitor(params, 'actorCount');
+  folder.addMonitor(params, 'fps');
   
   folder.addInput(params, 'gravAmp', {min:-10, max: 2000, step: 1});
   folder.addInput(params, 'gravX', {min:0, max: 1080});
@@ -241,13 +365,6 @@ const loadImage = async (url) => {
   });
 };
 
-const start = async () => {
-  //img = await loadImage('putty-128.png');
-  
-  lfo = new LFO(params.lfoFreq, params.lfoAmp);
-  //console.log(img);
-  manager = await canvasSketch(sketch, settings);
-};
 
 start();
 
