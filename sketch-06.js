@@ -8,7 +8,7 @@ const tweakpane = require('tweakpane');
 const settings = {
   dimensions: [ 1080, 1080 ],
   animate: true,
-  duration: 20,
+  duration: 10,
   fps: 30,
 };
 
@@ -33,6 +33,7 @@ const params = {
   gravX: 32,
   gravY: 32,
   gravAmp: 0,
+  lineColor: {r: 1, g: 0, b: 0.33},
 };
 
 const sketch = ({ context, width, height }) => {
@@ -46,10 +47,18 @@ const sketch = ({ context, width, height }) => {
     
     if(!params.animate) return;
 
-    context.fillStyle = 'black';
-    context.fillRect(0, 0, width, height);
-
+    if(playhead < 0.1) {
+      context.fillStyle = 'black';
+      context.fillRect(0, 0, width, height);
+    }
     lfo.next(playhead);
+
+    // Plot line, nomatter the grid
+    context.save();
+    context.translate(random.range(0, 1080), width/2);
+    context.fillStyle = `rgb(${params.lineColor.r}, ${params.lineColor.g}, ${params.lineColor.b})`;;
+    context.fillRect(0, 0, 16, 16);
+    context.restore();
 
     for(let i = 0; i < numCells; i++) {
       const col = i % cols;
@@ -60,9 +69,10 @@ const sketch = ({ context, width, height }) => {
 
       let rgb  = new RGB(255, 255, 255);
 
-      const n = Math.max(params.noiseFact, random.noise2D(x + (Math.sin(playhead * Math.PI) * 3), y, params.freq) + 0.3);
+      //const n = Math.max(params.noiseFact, random.noise2D(x + (Math.sin(playhead * Math.PI) * 3), y, params.freq) + 0.3);
 
-      rgb.addNoise(n * params.colorNoise * lfo.out);
+      rgb.modify(random.noise2D(x + Math.sin(playhead * Math.PI), y - Math.sin(playhead * Math.PI)) * 0.6);
+      
 
       context.fillStyle = rgb.toString();
 
@@ -74,19 +84,24 @@ const sketch = ({ context, width, height }) => {
       //context.translate((params.displace * random.range(-1, 1)) * cols * 2, (params.displace * random.range(-1, 1)) * rows * 2);
       //context.translate(lfo.out * 10, lfo.out * 100);
 
-      const gravVect = new Vector(params.gravX, params.gravY);
-      const gravDist = width / (new Vector(x, y).getDistance(gravVect) * cell);
+      //const gravVect = new Vector(params.gravX, params.gravY);
+      //const gravDist = width / (new Vector(x, y).getDistance(gravVect) * cell);
       //const move = new Vector(x, y).getVectorTo(gravVect);
       //console.log(gravDist);
 
-      context.rotate(lfo.out * params.gravAmp * gravDist * 2);
+      //context.rotate(lfo.out * params.gravAmp * gravDist * 2);
       //context.translate(params.gravAmp * gravDist * move.x * lfo.out, params.gravAmp * gravDist * move.y * lfo.out);
       
       context.beginPath();
-      const rad = cell * params.radius * n;
-      context.translate((rad * 0.3), (rad));
-      context.arc(0, 0, rad, 0, Math.PI * 2);
-      context.fill();
+      //const rad = cell * params.radius * n;
+      //context.translate((rad * 0.3), (rad));
+      //context.arc(0, 0, rad, 0, Math.PI * 2);
+      //context.rect(x, y, cell, cell);
+      context.fillStyle = rgb.toString();
+      context.fillRect(0, 0, cell, cell);
+
+
+      //cos(xy + cos(4y))2 + sin(y) = 0.4x + 0.1y^2
 
       //context.fillText(glyph, 0, 0);
 
@@ -197,6 +212,7 @@ const createPane = () => {
   folder.addInput(params, 'colorNoise', {min:-1, max: 10, step: 0.1});
   folder.addInput(params, 'colFilter', {min:0, max: 1, step: 0.1});
   folder.addInput(params, 'crossfade', {min:0, max: 1, step: 0.1});
+  folder.addInput(params, 'lineColor');
   
   folder.addInput(params, 'gravAmp', {min:-10, max: 2000, step: 1});
   folder.addInput(params, 'gravX', {min:0, max: 1080});
@@ -226,7 +242,7 @@ const loadImage = async (url) => {
 };
 
 const start = async () => {
-  img = await loadImage('putty-128.png');
+  //img = await loadImage('putty-128.png');
   
   lfo = new LFO(params.lfoFreq, params.lfoAmp);
   //console.log(img);
