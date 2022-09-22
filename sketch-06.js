@@ -1,3 +1,5 @@
+//canvas-sketch sketch-06.js --output=output/05 --stream --open
+
 const canvasSketch = require('canvas-sketch');
 //const math = require('canvas-sketch-util/math');
 const random = require('canvas-sketch-util/random');
@@ -19,13 +21,13 @@ const params = {
   freq: 0.3,
   frame: 0,
   lfoFreq: 1,
-  lfoAmp: 0.02,
+  lfoAmp: 0.002,
   crossfade: 0,
-  noiseFact: 1.0,
+  noiseFact: 0.5,
   displace: 0.0,
   radius: 0.5,
-  colorNoise: 1,
-  colFilter: 0.1,
+  colorNoise: 4.0,
+  colFilter: 0.2,
   boost: 2.5,
   animate: true,
   gravX: 32,
@@ -33,50 +35,16 @@ const params = {
   gravAmp: 0,
 };
 
-const sourceCanvas = document.createElement('canvas');
-const sourceContext = sourceCanvas.getContext('2d');
-
 const sketch = ({ context, width, height }) => {
   const cell = 16;
-  const cols = 64; //Math.floor(width / cell);
-  const rows = 64; //Math.floor(height / cell);
+  const cols = 64;
+  const rows = 64;
   const numCells = cols * rows;
-  
 
-  sourceCanvas.width = cols;
-  sourceCanvas.height = rows;
 
   return ({ context, width, height, playhead }) => {
     
     if(!params.animate) return;
-
-    //typeContext.font = `${params.fontSize}px ${params.fontFamily}`;
-    //typeContext.textBaseline = 'top';
-    
-    /*const metrics = typeContext.measureText(params.text);
-    const mx = metrics.actualBoundingBoxLeft * -1;
-    const my = metrics.actualBoundingBoxAscent * -1;
-    const mw = metrics.actualBoundingBoxLeft + metrics.actualBoundingBoxRight;
-    const mh = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
-
-    const tx = (cols - mw) * 0.5 - mx;
-    const ty = (rows - mh) * 0.5 -my;*/
-
-    sourceContext.save();
-    //typeContext.translate(tx, ty);
-    //typeContext.beginPath();
-    //typeContext.rect(mx, my, mw, mh);
-    sourceContext.fillStyle = 'black';
-    sourceContext.fillRect(0, 0, cols, rows);
-    sourceContext.drawImage(img, 0, 0);
-    const sourceData = sourceContext.getImageData(0, 0, cols, rows).data;
-
-    sourceContext.fillStyle = 'black';
-    sourceContext.fillRect(0, 0, cols, rows);
-    sourceContext.drawImage(img2, 0, 0);
-    const sourceData2 = sourceContext.getImageData(0, 0, cols, rows).data;
-
-    sourceContext.restore();
 
     context.fillStyle = 'black';
     context.fillRect(0, 0, width, height);
@@ -90,53 +58,30 @@ const sketch = ({ context, width, height }) => {
       const x = col * cell;
       const y = row * cell;
 
-      let rgb  = new RGB(sourceData[i * 4 + 0], sourceData[i * 4 + 1], sourceData[i * 4 + 2]);
-      const rgb2 = new RGB(sourceData2[i * 4 + 0], sourceData2[i * 4 + 1], sourceData2[i * 4 + 2]);
-      //const a = typeData[i * 4 + 3];
-      //const glyph = getGlyph(r);
-      //r *= random.noise3D(x, y, 1, 1);
-
-      //context.fillStyle = 'black';
-      //context.fillRect(0, 0, width, height);
-
-      rgb = rgb.crossfade(rgb2, params.crossfade);
-      rgb.modify(params.boost);
-
-      
-
-      if(rgb.getIntensity() < params.colFilter) continue;
+      let rgb  = new RGB(255, 255, 255);
 
       const n = Math.max(params.noiseFact, random.noise2D(x + (Math.sin(playhead * Math.PI) * 3), y, params.freq) + 0.3);
 
       rgb.addNoise(n * params.colorNoise * lfo.out);
 
       context.fillStyle = rgb.toString();
-      //context.font = `${cell * 2}px ${params.fontFamily}`;
-      //if(Math.random() < 0.1)
-      //  context.font = `${cell * 6}px ${params.fontFamily}`;
 
       if(rgb.getIntensity() < params.colFilter) continue;
 
       context.save();
       context.translate(x, y);
       context.translate(32, 32);
-      context.translate((params.displace * random.range(-1, 1)) * cols * 2, (params.displace * random.range(-1, 1)) * rows * 2);
-      //context.translate(lfo.out * 10, lfo.out * 10);
+      //context.translate((params.displace * random.range(-1, 1)) * cols * 2, (params.displace * random.range(-1, 1)) * rows * 2);
+      //context.translate(lfo.out * 10, lfo.out * 100);
 
       const gravVect = new Vector(params.gravX, params.gravY);
       const gravDist = width / (new Vector(x, y).getDistance(gravVect) * cell);
-      const move = new Vector(x, y).getVectorTo(gravVect);
+      //const move = new Vector(x, y).getVectorTo(gravVect);
       //console.log(gravDist);
 
       context.rotate(lfo.out * params.gravAmp * gravDist * 2);
-      context.translate(params.gravAmp * gravDist * move.x * lfo.out, params.gravAmp * gravDist * move.y * lfo.out);
+      //context.translate(params.gravAmp * gravDist * move.x * lfo.out, params.gravAmp * gravDist * move.y * lfo.out);
       
-      // distance becomes velocity
-
-
-      //context.translate(0, intens * n * 20);
-      //context.translate(cell * 0.5, cell * 0.5);
-      //context.fillRect(0, 0, cell, cell);
       context.beginPath();
       const rad = cell * params.radius * n;
       context.translate((rad * 0.3), (rad));
@@ -253,7 +198,7 @@ const createPane = () => {
   folder.addInput(params, 'colFilter', {min:0, max: 1, step: 0.1});
   folder.addInput(params, 'crossfade', {min:0, max: 1, step: 0.1});
   
-  folder.addInput(params, 'gravAmp', {min:-10, max: 20, step: 0.01});
+  folder.addInput(params, 'gravAmp', {min:-10, max: 2000, step: 1});
   folder.addInput(params, 'gravX', {min:0, max: 1080});
   folder.addInput(params, 'gravY', {min:0, max: 1080});
   folder.addInput(params, 'animate');
@@ -281,8 +226,8 @@ const loadImage = async (url) => {
 };
 
 const start = async () => {
-  img = await loadImage('badger-64.png');
-  img2 = await loadImage('scream-64.png');
+  img = await loadImage('putty-128.png');
+  
   lfo = new LFO(params.lfoFreq, params.lfoAmp);
   //console.log(img);
   manager = await canvasSketch(sketch, settings);
