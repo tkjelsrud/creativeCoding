@@ -4,6 +4,7 @@ const canvasSketch = require('canvas-sketch');
 //const math = require('canvas-sketch-util/math');
 const random = require('canvas-sketch-util/random');
 const tweakpane = require('tweakpane');
+const {Vector, RGB} = require('./lib/util.js');
 
 const settings = {
   dimensions: [ 1080, 1080 ],
@@ -27,44 +28,45 @@ const params = {
   crossfade: 0,
   noiseFact: 0.5,
   displace: 0.0,
-  radius: 1,
-  colorNoise: 4.0,
-  colFilter: 0.2,
+  radius: 1.0,
+  colorNoise: 0.25,
+  colFilter: 0.1,
   boost: 2.5,
   animate: true,
-  gravX: 32,
-  gravY: 32,
-  gravAmp: 0,
   lineColor: {r: 140, g: 46, b: 77},
+  palette: ["#eaaf47", "#40280f", "#eeeeee", "#472422"],
   actorCount: 0,
-  maxActors: 255,
+  maxActors: 128,
   lastFrame: 0,
   fps: 0,
   clear: true,
+  baseVel: 3,
+  gravity: {x: 540, y: 540, ampX: 0.2, ampY: 0.2},
+  size: {cell: 16, cols: 64, rows: 64, height: 1080, width: 1080},
 };
 
 const start = async () => {
   //img = await loadImage('putty-128.png');
   
   lfo = new LFO(params.lfoFreq, params.lfoAmp);
-  animActors.push(new AnimStar(settings.dimensions[0] / 2, settings.dimensions[1] / 2));
+  animActors.push(new AnimStar(64, 64));
+  animActors.push(new AnimBar(128, 0));
 
-  //console.log(img);
   manager = await canvasSketch(sketch, settings);
 };
 
 
 const sketch = ({ context, width, height }) => {
-  const cell = 16;
-  const cols = 64;
-  const rows = 64;
-  const numCells = cols * rows;
+  //const numCells = params.size.cols * params.size.rows;
+ 
 
 
   return ({ context, width, height, playhead }) => {
     
-    if(!params.animate) return;
-
+    if(!params.animate) {
+      animActors = new Array();
+      return;
+    }
     params.fps = 1000 / (performance.now() - params.lastFrame);
     params.lastFrame = performance.now();
 
@@ -74,9 +76,6 @@ const sketch = ({ context, width, height }) => {
     }
     lfo.next(playhead);
 
-    // Plot line, nomatter the grid
-    
-    //let maxSpawn = 5;
     for(let i = animActors.length - 1; i >= 0; i--) {
       let ia = animActors[i];
 
@@ -85,23 +84,7 @@ const sketch = ({ context, width, height }) => {
         continue;
       }
 
-      context.save();
-      context.beginPath();
-      context.translate(ia.loc.x, ia.loc.y);
-      //console.log(ia);
-      context.fillStyle = ia.color.toString();
-      //context.fillRect(0, 0, 32, 32);
-      //const rad = cell * params.radius;
-      context.rotate(ia.radius * 20);
-      let shadowColor = ia.color.copy();
-      shadowColor.modify(1.3);
-      context.shadowColor = shadowColor.toString();
-      context.shadowBlur = ia.radius * cell;
-
-      context.arc(0, 0, ia.radius * cell, 0, Math.PI * 2);
-      context.fill();
-      context.closePath();
-      context.restore();
+      ia.draw(context);
 
       r = ia.next(playhead, width, height);
       if(r && animActors.length < params.maxActors)
@@ -111,9 +94,10 @@ const sketch = ({ context, width, height }) => {
     //if(animActors.length > 100) animActors.splice(0, animActors.length-100);
     params.actorCount = animActors.length;
 
-    if(animActors.length == 0)
+    if(animActors.length == 0) {
       animActors.push(new AnimStar(settings.dimensions[0] / 2, settings.dimensions[1] / 2));
-
+      //animActors.push(new AnimBar(settings.dimensions[0] / 2, 0));
+    }
 
     //context.translate(random.noise2D(playhead, 0) * width, random.noise2D(playhead, 0) * height);
     /*context.translate(width/2, height/2);
@@ -176,86 +160,171 @@ const sketch = ({ context, width, height }) => {
   };
 };
 
-class RGB {
-  constructor(r, g, b) {
-    this.r = r;
-    this.g = g;
-    this.b = b;
+
+
+
+
+
+class Anim {
+  constructor(x, y) {
+      this.loc = new Vector(x, y);
+      this.dir = new Vector(0, 0);
   }
 
-  copy() {
-    return new RGB(this.r, this.g, this.b);
+  gravity() {
+    const gravPoint = new Vector(params.gravity.x, params.gravity.y);
+    let gravOff = new Vector((gravPoint.getDistance(this.loc) / (params.size.width)) * params.gravity.ampX, (gravPoint.getDistance(this.loc) / (params.size.height)) * params.gravity.ampY);
+    
+    if(gravPoint.x < this.loc.x) gravOff.x *= -1;
+    if(gravPoint.y < this.loc.y) gravOff.y *= -1;
+
+    this.dir.add(gravOff);
   }
 
-  modify(f) {
-    this.r *= f;
-    this.g *= f;
-    this.b *= f;
-  }
+  checkCollision() {
+    let collide = false;
 
-  addNoise(f) {
-    this.r *= random.range(1-f, 1+f);
-    this.g *= random.range(1-f, 1+f);
-    this.b *= random.range(1-f, 1+f);
-  }
-
-  getIntensity() {
-    return ((this.r + this.g + this.b) / 3) / 256;
-  }
-
-  toString() {
-    return `rgb(${this.r}, ${this.g}, ${this.b})`;
-  }
-
-  crossfade(toRgb, fact) {
-    // Cross between two images (color informations)
-    let r = Math.floor(((this.r * (1 - fact)) + (toRgb.r * fact)) / 2);
-    let g = Math.floor(((this.g * (1 - fact)) + (toRgb.g * fact)) / 2);
-    let b = Math.floor(((this.b * (1 - fact)) + (toRgb.b * fact)) / 2);
-
-    return new RGB(r, g, b);
-  }
-
-  static newRandom() {
-    return new RGB(random.range(32, 255), random.range(32, 255), random.range(32, 255));
+    if(this.loc.x <= 0 || this.loc.x >= params.size.width) {
+      this.loc.x = (this.loc.x <= 0 ? 0 : params.size.width);
+      this.dir.x *= -1;
+      collide = true;
+    }
+    if(this.loc.y <= 0 || this.loc.y >= params.size.height) {
+      this.loc.y = (this.loc.y <= 0 ? 0 : params.size.height);
+      this.dir.y *= -1;
+      collide = true;
+    }
+    return collide;
   }
 }
 
-class AnimStar {
+
+class AnimBar extends Anim {
   constructor(x, y) {
+    super(x, y);
     this.loc = new Vector(x, y);
-    this.dir = new Vector(random.range(-20, 20), random.range(-20, 20));
-    this.color = new RGB(random.range(64, 255), random.range(64, 255), random.range(64, 255));
-    this.time = random.range(150, 1000);
-    this.radius = random.range(0.2, 5.0);
+    this.dir = new Vector(random.range(params.baseVel * -1, params.baseVel), 0);
+    this.color = RGB.hexToRgb(random.pick(params.palette));
+    this.time = random.range(150, 15000);
+    this.age = this.time;
+    this.width = random.range(params.size.cell * -2, params.size.cell * 2);
+    this.maxAnim = 32;
+    this.rot = 0.0;
+    this.rotVel = random.range(0, 0.01);
   }
 
   isActive() {
     return (this.time > 0);
   }
 
-  next(frame, width, height) {
-    this.loc.add(this.dir);
-    this.time--;
+  draw(context) {
+    context.save();
+    context.beginPath();
+    context.translate(this.loc.x, this.loc.y);
+    context.fillStyle = this.color.toString();
+    
+    let shadowColor = this.color.copy();
+    shadowColor.modify(0.8);
+    context.shadowColor = shadowColor.toString();
+    context.shadowBlur = params.size.cell * 10;
+    
+    this.rot += this.rotVel;
+    context.rotate(this.rot * Math.PI);
 
+
+    context.fillRect(0, 0, this.width, params.size.height);
+    context.fill();
+    context.closePath();
+    context.restore();
+  }
+
+  checkCollision() {
     let collide = false;
 
-    if(this.loc.x <= 0 || this.loc.x >= width) {
-      this.loc.x = (this.loc.x <= 0 ? 0 : width);
+    if(this.loc.x <= 0 || this.loc.x >= params.size.width) {
+      this.loc.x = (this.loc.x <= 0 ? 0 : params.size.width);
       this.dir.x *= -1;
       collide = true;
     }
-    if(this.loc.y <= 0 || this.loc.y >= height) {
-      this.loc.y = (this.loc.y <= 0 ? 0 : height);
-      this.dir.y *= -1;
-      collide = true;
+    
+    return collide;
+  }
+
+  next(frame, width, height) {
+    //this.gravity();
+    this.dir.y = 0;
+
+    this.loc.add(this.dir);
+    this.time--;
+
+    let collide = this.checkCollision();
+
+    if(collide) {
+      let spawn = new AnimBar(this.loc.x, this.loc.y);
+      //spawn.time = this.time + 2;
+      //spawn.color = this.color;
+      spawn.color.addNoise(params.colorNoise);
+
+      return spawn;
     }
+
+    return null;
+
+  }
+}
+
+class AnimStar extends Anim {
+  constructor(x, y) {
+    super();
+    this.loc = new Vector(x, y);
+    this.dir = new Vector(random.range(params.baseVel * -1, params.baseVel), random.range(params.baseVel * -1, params.baseVel));
+    this.color = RGB.hexToRgb(random.pick(params.palette));
+    //this.color = new RGB(random.range(64, 255), random.range(64, 255), random.range(64, 255));
+    this.time = random.range(150, 5000);
+    this.age = this.time;
+    this.radius = params.radius * random.range(0, 1.0);
+    this.maxAnim = 128;
+    
+  }
+
+  isActive() {
+    return (this.time > 0);
+  }
+
+  draw(context) {
+    context.save();
+    context.beginPath();
+    context.translate(this.loc.x, this.loc.y);
+    context.fillStyle = this.color.toString();
+    
+    let shadowColor = this.color.copy();
+    shadowColor.modify(-0.3);
+    context.shadowColor = shadowColor.toString();
+    context.shadowBlur = this.radius * params.size.cell / 2;
+
+    context.arc(0, 0, this.radius * this.getAge() * params.size.cell, 0, Math.PI * 2);
+    context.fill();
+    context.closePath();
+    context.restore();
+  }
+
+  getAge() {
+    return (this.time / this.age);
+  }
+
+  next(frame, width, height) {
+    this.gravity();
+
+    this.loc.add(this.dir);
+    this.time--;
+
+    let collide = this.checkCollision();
 
     if(collide) {
       let spawn = new AnimStar(this.loc.x, this.loc.y);
-      spawn.time = this.time + 2;
-      spawn.color = this.color;
-      spawn.color.addNoise(0.3);
+      //spawn.time = this.time + 2;
+      //spawn.color = this.color;
+      spawn.color.addNoise(params.colorNoise);
 
       return spawn;
     }
@@ -264,6 +333,9 @@ class AnimStar {
   }
 
 }
+
+
+
 
 class LFO {
   constructor(freqDiv, amp, wave = "tri") {
@@ -284,26 +356,7 @@ class LFO {
   }
 }
 
-class Vector {
-  constructor(x, y) {
-    this.x = x;
-    this.y = y;
-  }
 
-  add(v) {
-    this.x += v.x;
-    this.y += v.y;
-  }
-
-  getDistance(v) {
-    const dx = this.x - v.x;
-    const dy = this.y - v.y;
-    return Math.sqrt(dx * dx + dy * dy);
-  }
-  getVectorTo(v) {
-    return new Vector(v.x - this.x, v.y - this.y);
-  }
-}
 
 const getGlyph = (v) => {
   if (v < 50) return '';
@@ -320,10 +373,7 @@ const createPane = () => {
   const pane = new tweakpane.Pane();
   let folder;
 
-  folder = pane.addFolder({title: 'Text'});
-  //folder.addInput(params, 'fontSize', {min:20, max: 1800, step: 10});
-  
-  //folder.addInput(params, 'imgId', {min:1, max: 2, step: 1});
+  folder = pane.addFolder({title: 'TK Animation'});
   folder.addInput(params, 'freq', {min:-1, max: 1});
   folder.addInput(params, 'lfoFreq', {min:0, max: 100, step: 1});
   folder.addInput(params, 'lfoAmp', {min:-1, max: 1, step: 0.01});
@@ -333,28 +383,16 @@ const createPane = () => {
   folder.addInput(params, 'colorNoise', {min:-1, max: 10, step: 0.1});
   folder.addInput(params, 'colFilter', {min:0, max: 1, step: 0.1});
   folder.addInput(params, 'crossfade', {min:0, max: 1, step: 0.1});
-  folder.addInput(params, 'lineColor');
   folder.addInput(params, 'clear');
+  folder.addInput(params, 'baseVel', {min:0, max: 20, step: 1});
+  folder.addInput(params, 'maxActors', {min:0, max: 512, step: 16});
   folder.addMonitor(params, 'actorCount');
   folder.addMonitor(params, 'fps');
-  
-  folder.addInput(params, 'gravAmp', {min:-10, max: 2000, step: 1});
-  folder.addInput(params, 'gravX', {min:0, max: 1080});
-  folder.addInput(params, 'gravY', {min:0, max: 1080});
   folder.addInput(params, 'animate');
 };
 
 createPane();
 
-/*const onKeyUp = (e) => {
-  if(e.key == "1") {
-
-  }
-  manager.render();
-}
-
-document.addEventListener('keyup', onKeyUp);
-*/
 
 const loadImage = async (url) => {
   return new Promise((resolve, reject) => {
@@ -368,32 +406,3 @@ const loadImage = async (url) => {
 
 start();
 
-
-//const url = "https://picsum.photos/200/300";
-
-
-/*
-const start = () => {
-  loadMeSomeImage(url).then(img => {
-    console.log('image width', img.width);
-  });
-  console.log('this line');
-};
-
-const start = async () => {
-  const img = await loadMeSomeImage(url);
-  console.log('image width', img.width);
-  console.log('this line');
-};
-
-start();
-*/
-
-
-    //context.textBaseline = 'middle';
-    //context.textAlign = 'center';
-
-    //context.drawImage(typeCanvas, 0, 0);
-
-    //console.log(cols + " " + rows + " " + numCells);
-    //console.log('trig');
