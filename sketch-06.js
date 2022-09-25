@@ -13,6 +13,12 @@ const settings = {
   fps: 24,
 };
 
+const palette = {
+  active: ["#8FA4B9", "#623633", "#3F3E43", "#841737"],
+  fall: ["#8FA4B9", "#623633", "#3F3E43", "#841737"],
+  badger: ["#eaaf47", "#40280f", "#eeeeee", "#472422"]
+};
+
 let manager;
 let img;
 let img2;
@@ -34,7 +40,6 @@ const params = {
   boost: 2.5,
   animate: true,
   lineColor: {r: 140, g: 46, b: 77},
-  palette: ["#eaaf47", "#40280f", "#eeeeee", "#472422"],
   actorCount: 0,
   maxActors: 128,
   lastFrame: 0,
@@ -49,7 +54,7 @@ const start = async () => {
   //img = await loadImage('putty-128.png');
   
   lfo = new LFO(params.lfoFreq, params.lfoAmp);
-  animActors.push(new AnimStar(64, 64));
+  //animActors.push(new AnimStar(64, 64));
   animActors.push(new AnimBar(128, 0));
 
   manager = await canvasSketch(sketch, settings);
@@ -95,8 +100,8 @@ const sketch = ({ context, width, height }) => {
     params.actorCount = animActors.length;
 
     if(animActors.length == 0) {
-      animActors.push(new AnimStar(settings.dimensions[0] / 2, settings.dimensions[1] / 2));
-      //animActors.push(new AnimBar(settings.dimensions[0] / 2, 0));
+      //animActors.push(new AnimStar(settings.dimensions[0] / 2, settings.dimensions[1] / 2));
+      animActors.push(new AnimBar(settings.dimensions[0] / 2, 0));
     }
 
     //context.translate(random.noise2D(playhead, 0) * width, random.noise2D(playhead, 0) * height);
@@ -204,13 +209,13 @@ class AnimBar extends Anim {
     super(x, y);
     this.loc = new Vector(x, y);
     this.dir = new Vector(random.range(params.baseVel * -1, params.baseVel), 0);
-    this.color = RGB.hexToRgb(random.pick(params.palette));
+    this.color = RGB.hexToRgb(random.pick(palette.active));
     this.time = random.range(150, 15000);
     this.age = this.time;
     this.width = random.range(params.size.cell * -2, params.size.cell * 2);
     this.maxAnim = 32;
     this.rot = 0.0;
-    this.rotVel = random.range(0, 0.01);
+    this.rotVel = 0; // random.range(0, 0.01);
   }
 
   isActive() {
@@ -278,7 +283,7 @@ class AnimStar extends Anim {
     super();
     this.loc = new Vector(x, y);
     this.dir = new Vector(random.range(params.baseVel * -1, params.baseVel), random.range(params.baseVel * -1, params.baseVel));
-    this.color = RGB.hexToRgb(random.pick(params.palette));
+    this.color = RGB.hexToRgb(random.pick(palette.active));
     //this.color = new RGB(random.range(64, 255), random.range(64, 255), random.range(64, 255));
     this.time = random.range(150, 5000);
     this.age = this.time;
