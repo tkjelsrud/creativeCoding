@@ -1,5 +1,3 @@
-//canvas-sketch sketch-06.js --output=output/05 --stream --open
-
 const canvasSketch = require('canvas-sketch');
 const { insideCircle } = require('canvas-sketch-util/random');
 //const math = require('canvas-sketch-util/math');
@@ -7,6 +5,7 @@ const random = require('canvas-sketch-util/random');
 const tweakpane = require('tweakpane');
 const {Vector, RGB, RGBA} = require('./lib/util.js');
 const {Anim, AnimLayer} = require('./lib/anim.js');
+const risoColor = require('riso-colors');
 
 const settings = {
   dimensions: [ 1080, 1080 ],
@@ -33,17 +32,8 @@ let tPane = null;
 let animLayer = null;
 
 const params = {
-  freq: 0.3,
-  frame: 0,
-  lfoFreq: 1,
-  lfoAmp: 0.002,
   crossfade: 0,
   noiseFact: 0.5,
-  displace: 0.0,
-  radius: 1.0,
-  colorNoise: 1.05,
-  colFilter: 0.1,
-  boost: 2.5,
   animate: true,
   lineColor: {r: 140, g: 46, b: 77},
   actorCount: 0,
@@ -206,7 +196,7 @@ const sketch = ({ context, width, height }) => {
     drawFractal(context, 540, 600, 360 * playhead, 0, 10);
     
     animLayer.next(frame);
-
+    
 
     let msBeforeDraw = performance.now();
     animLayer.draw(context);
@@ -768,14 +758,6 @@ const createPane = () => {
   let folder;
 
   folder = tPane.addFolder({title: 'TK Animation'});
-  folder.addInput(params, 'freq', {min:-1, max: 1});
-  folder.addInput(params, 'lfoFreq', {min:0, max: 100, step: 1});
-  folder.addInput(params, 'lfoAmp', {min:-1, max: 1, step: 0.01});
-  folder.addInput(params, 'noiseFact', {min:0, max: 1, step: 0.01});
-  folder.addInput(params, 'displace', {min:-1, max: 1, step: 0.01});
-  folder.addInput(params, 'radius', {min:0, max: 10, step: 0.1});
-  folder.addInput(params, 'colorNoise', {min:-1, max: 10, step: 0.1});
-  folder.addInput(params, 'colFilter', {min:0, max: 1, step: 0.1});
   folder.addInput(params, 'crossfade', {min:0, max: 1, step: 0.1});
   folder.addInput(params, 'clear');
   folder.addInput(params, 'newActors',  {min:0, max: 256, step: 1});
