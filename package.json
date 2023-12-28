@@ -12,8 +12,10 @@
   "dependencies": {
     "canvas-sketch": "^0.7.5",
     "canvas-sketch-util": "^1.10.0",
+    "d3": "^7.8.5",
     "jzz": "^1.5.2",
     "riso-colors": "^1.0.1",
+    "three": "^0.147.0",
     "tweakpane": "^3.1.0"
   }
 }

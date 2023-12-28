@@ -37,9 +37,9 @@ const sourceCanvas = document.createElement('canvas');
 const sourceContext = sourceCanvas.getContext('2d');
 
 const sketch = ({ context, width, height }) => {
-  const cell = 16;
-  const cols = 64; //Math.floor(width / cell);
-  const rows = 64; //Math.floor(height / cell);
+  const cell = 8;
+  const cols = 128; //Math.floor(width / cell);
+  const rows = 128; //Math.floor(height / cell);
   const numCells = cols * rows;
   
 
@@ -281,8 +281,8 @@ const loadImage = async (url) => {
 };
 
 const start = async () => {
-  img = await loadImage('badger-64.png');
-  img2 = await loadImage('scream-64.png');
+  img = await loadImage('img/winter-128.png');
+  img2 = await loadImage('img/scream-64.png');
   lfo = new LFO(params.lfoFreq, params.lfoAmp);
   //console.log(img);
   manager = await canvasSketch(sketch, settings);
