@@ -6,7 +6,7 @@ const tweakpane = require('tweakpane');
 const settings = {
   dimensions: [ 1080, 1080 ],
   animate: true,
-  duration: 20,
+  duration: 100,
   fps: 30,
 };
 
@@ -282,7 +282,7 @@ const loadImage = async (url) => {
 
 const start = async () => {
   img = await loadImage('img/winter-128.png');
-  img2 = await loadImage('img/scream-64.png');
+  img2 = await loadImage('img/winter2-128.png');
   lfo = new LFO(params.lfoFreq, params.lfoAmp);
   //console.log(img);
   manager = await canvasSketch(sketch, settings);
