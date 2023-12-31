@@ -1,2 +1,4 @@
 node_modules
-output
+output.DS_Store
+.DS_Store
+.gitignore

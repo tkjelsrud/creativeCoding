@@ -2,6 +2,9 @@ const canvasSketch = require('canvas-sketch');
 const random = require('canvas-sketch-util/random');
 const tweakpane = require('tweakpane');
 const risoColor = require('riso-colors');
+const { renderPolylines } = require('canvas-sketch-util/penplot');
+const { clipPolylinesToBox } = require('canvas-sketch-util/geometry');
+
 
 // Import my own libraries
 const {Vector, RGB, RGBA} = require('./lib/util.js');
@@ -95,6 +98,7 @@ class Scene {
         this.rgbData = null;
         this.colorPalette = setup.colorPalette;
         this.offset = ("offset" in setup ? setup.offset : new Vector(0, 0));
+        this.brightestBlocks = null;
     }
 
     loadSource() {
@@ -114,17 +118,66 @@ class Scene {
             }
         }
 
+        const blockBrightness = [];
+        const blocksX = 8;
+        const blocksY = 8;
+
+        // Calculate the size of each block
+        const blockSizeX = this.drawSize.x / blocksX;
+        const blockSizeY = this.drawSize.y / blocksY;
+
+        for (let blockY = 0; blockY < blocksY; blockY++) {
+            for (let blockX = 0; blockX < blocksX; blockX++) {
+                let totalBrightness = 0;
+    
+                for (let y = 0; y < blockSizeY; y++) {
+                    for (let x = 0; x < blockSizeX; x++) {
+                        const pixelX = blockX * blockSizeX + x;
+                        const pixelY = blockY * blockSizeY + y;
+                        const index = (pixelY * this.drawSize.x + pixelX) * 4;
+    
+                        const red = this.sourceData[index];
+                        const green = this.sourceData[index + 1];
+                        const blue = this.sourceData[index + 2];
+    
+                        // Calculate brightness (you can use a more accurate formula if needed)
+                        totalBrightness += (red + green + blue) / 3;
+                    }
+                }
+    
+                // Calculate average brightness for the block
+                const averageBrightness = totalBrightness / (blockSizeX * blockSizeY);
+    
+                // Store the block's average brightness and position
+                blockBrightness.push({
+                    x: blockX * blockSizeX * 10,
+                    y: blockY * blockSizeY * 10,
+                    brightness: averageBrightness
+                });
+            }
+        }
+    
+        // Sort the blocks by brightness
+        blockBrightness.sort((a, b) => b.brightness - a.brightness);
+
+        // Sort the blocks by brightness
+        blockBrightness.sort((a, b) => b.brightness - a.brightness);
+
+        // Pick the top 10 brightest blocks
+        this.brightestBlocks = blockBrightness.slice(0, 16);
+        //console.log(brightestBlocks);
         //console.log('this.sourceData:', this.sourceData);
         //console.log('this.rgbData:', this.rgbData);
 
     }
 
     draw(parentContext, playhead) {
-        
 
         for(let i = 0; i < (this.drawSize.x * this.drawSize.y); i++) {
             const col = i % this.drawSize.x;
             const row = Math.floor(i / this.drawSize.x);
+
+            //if (col < 5 || col > 15 ) continue;
 
             const x = col * this.cellSize;
             const y = row * this.cellSize;
@@ -190,6 +243,30 @@ class NoiseLayer {
     }
 }
 
+class PlotterLayer {
+    constructor(setup) {
+        this.plotArray = [];
+    }
+
+    loadSource(plotArray) {
+        this.plotArray = plotArray;
+        console.log(this.plotArray );
+    }
+
+    draw(parentContext, playhead) {
+        parentContext.save();
+        for(let i = 1; i < this.plotArray.length; i++) {
+            parentContext.strokeStyle = "white";
+            parentContext.lineWidth = 2;
+            parentContext.moveTo(this.plotArray[i-1].x, this.plotArray[i-1].y);
+            parentContext.lineTo(this.plotArray[i].x, this.plotArray[i].y);
+            parentContext.stroke();
+            parentContext.restore();
+        }
+        
+    }
+}
+
 const scenes = {
     a: new Scene({
         image: null, 
@@ -204,6 +281,7 @@ const scenes = {
             RGB.hexToRgb("#04AB4E")
         ]}),
     noi: new NoiseLayer(),
+    plot: new PlotterLayer(),
 };
 
 const currentScene = scenes.a;
@@ -216,28 +294,13 @@ const sketch = ({ context, width, height }) => {
         if(!params.animate) return;
 
         time = Date.now();
-        /*const cell = params.cell;
-        const cols = params.cols; //Math.floor(width / cell);
-        const rows = params.rows; //Math.floor(height / cell);
-        const numCells = cols * rows;
-
-        params.logg = cols + "/" + rows;
-        
-        sourceCanvas.width = cols;
-        sourceCanvas.height = rows;
-
-        sourceContext.save();*/
 
         context.fillStyle = (RGB.from(params.bgColor)).toString();;
         context.fillRect(0, 0, width, height);
 
         currentScene.draw(context, playhead);
 
-        // Too taxing, create it once?
-        //scenes.noi.draw(context, playhead);
-
-        //context.fillStyle = (RGB.from(params.bgColor)).toString();;
-        //context.fillRect(0, 0, width, height);
+        scenes.plot.draw(context, playhead);
 
         lfo.next(playhead);
         params.logg = "playhead:" + playhead + "\nms:" + (Date.now() - time);
@@ -257,6 +320,8 @@ const loadImage = async (url) => {
 const start = async () => {
     currentScene.image = await loadImage('img/winter-1-256.png');
     currentScene.loadSource();
+    scenes.plot.loadSource(currentScene.brightestBlocks);
+    
 
     lfo = new LFO(1, 1);
     //console.log(img);
