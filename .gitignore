@@ -2,3 +2,4 @@ node_modules
 output.DS_Store
 .DS_Store
 .gitignore
+package-lock.json
