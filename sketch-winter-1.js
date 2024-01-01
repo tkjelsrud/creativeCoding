@@ -96,7 +96,7 @@ class Scene {
         this.sourceContext = this.sourceCanvas.getContext('2d');
         this.sourceData = null;
         this.rgbData = null;
-        this.colorPalette = setup.colorPalette;
+        this.colorPalette = ("colorPalette" in setup ? setup.colorPalette : null);
         this.offset = ("offset" in setup ? setup.offset : new Vector(0, 0));
         this.brightestBlocks = null;
     }
@@ -117,58 +117,6 @@ class Scene {
                 this.rgbData[i] = this.rgbData[i].closestColor(this.colorPalette);
             }
         }
-
-        const blockBrightness = [];
-        const blocksX = 8;
-        const blocksY = 8;
-
-        // Calculate the size of each block
-        const blockSizeX = this.drawSize.x / blocksX;
-        const blockSizeY = this.drawSize.y / blocksY;
-
-        for (let blockY = 0; blockY < blocksY; blockY++) {
-            for (let blockX = 0; blockX < blocksX; blockX++) {
-                let totalBrightness = 0;
-    
-                for (let y = 0; y < blockSizeY; y++) {
-                    for (let x = 0; x < blockSizeX; x++) {
-                        const pixelX = blockX * blockSizeX + x;
-                        const pixelY = blockY * blockSizeY + y;
-                        const index = (pixelY * this.drawSize.x + pixelX) * 4;
-    
-                        const red = this.sourceData[index];
-                        const green = this.sourceData[index + 1];
-                        const blue = this.sourceData[index + 2];
-    
-                        // Calculate brightness (you can use a more accurate formula if needed)
-                        totalBrightness += (red + green + blue) / 3;
-                    }
-                }
-    
-                // Calculate average brightness for the block
-                const averageBrightness = totalBrightness / (blockSizeX * blockSizeY);
-    
-                // Store the block's average brightness and position
-                blockBrightness.push({
-                    x: blockX * blockSizeX * 10,
-                    y: blockY * blockSizeY * 10,
-                    brightness: averageBrightness
-                });
-            }
-        }
-    
-        // Sort the blocks by brightness
-        blockBrightness.sort((a, b) => b.brightness - a.brightness);
-
-        // Sort the blocks by brightness
-        blockBrightness.sort((a, b) => b.brightness - a.brightness);
-
-        // Pick the top 10 brightest blocks
-        this.brightestBlocks = blockBrightness.slice(0, 16);
-        //console.log(brightestBlocks);
-        //console.log('this.sourceData:', this.sourceData);
-        //console.log('this.rgbData:', this.rgbData);
-
     }
 
     draw(parentContext, playhead) {
@@ -183,9 +131,9 @@ class Scene {
             const y = row * this.cellSize;
 
             let rgb = this.rgbData[i].copy(); //= new RGB(this.sourceData[i * 4 + 0], this.sourceData[i * 4 + 1], this.sourceData[i * 4 + 2]);
-            const n = random.noise2D(x, y);
+            //const n = random.noise2D(x, y);
             //params.logg += n;
-            rgb.modify(1.1 + (n / 4));
+            //rgb.modify(1.1 + (n / 4));
 
             parentContext.save();
             parentContext.fillStyle = rgb.toString();
@@ -197,10 +145,10 @@ class Scene {
             parentContext.translate(x + displaceX, y + displaceY);
 
             // Melting test... if bright, pour down
-            params.colorMelt = (0.09 - playhead) * 20000;
-            if(params.colorMelt > 0) {
-                parentContext.translate(0, rgb.getIntensity() * params.colorMelt);
-            }
+            //params.colorMelt = (0.09 - playhead) * 20000;
+            //if(params.colorMelt > 0) {
+            //    parentContext.translate(0, rgb.getIntensity() * params.colorMelt);
+            //}
 
             parentContext.beginPath();
             const rad = this.cellSize * params.radius;
@@ -210,6 +158,28 @@ class Scene {
             parentContext.restore();
         }
         
+    }
+
+    applyMask(maskData) {
+        for(let i = 0; i < this.rgbData.length; i++) {
+            const intensity = maskData[i].getIntensity();
+
+            let rgb = this.rgbData[i].copy();
+
+            rgb.modify(intensity);
+
+            this.rgbData[i] = rgb;
+
+            // Log intensity values for debugging
+            //console.log(`Intensity: ${intensity}, Modified Intensity: ${modifiedIntensity}`);
+            //if(this.rgbData[i].getIntensity() > 0)
+            //    console.log(this.rgbData[i]);
+            //(this.rgbData[i]).modify(modifiedIntensity); // - intensity);
+            //console.log(`Before: R: ${this.rgbData[i].r}, G: ${this.rgbData[i].g}, B: ${this.rgbData[i].b}`);
+            //this.rgbData[i].modify(modifiedIntensity);
+            //console.log(`After: R: ${this.rgbData[i].r}, G: ${this.rgbData[i].g}, B: ${this.rgbData[i].b}`);
+       
+        }
     }
 }
 
@@ -222,7 +192,6 @@ class NoiseLayer {
             const y = Math.floor(i / settings.dimensions[1]);
 
             const n = random.noise2D(x + playhead * 10, y, 0.5);
-
             const rgb = new RGB(255, 0, 255);
 
             rgb.addNoise(n);
@@ -250,41 +219,76 @@ class PlotterLayer {
 
     loadSource(plotArray) {
         this.plotArray = plotArray;
-        console.log(this.plotArray );
     }
 
     draw(parentContext, playhead) {
         parentContext.save();
-        for(let i = 1; i < this.plotArray.length; i++) {
-            parentContext.strokeStyle = "white";
-            parentContext.lineWidth = 2;
-            parentContext.moveTo(this.plotArray[i-1].x, this.plotArray[i-1].y);
-            parentContext.lineTo(this.plotArray[i].x, this.plotArray[i].y);
-            parentContext.stroke();
-            parentContext.restore();
+    
+        parentContext.strokeStyle = "white";
+        parentContext.lineWidth = 2;
+    
+        for (let i = 0; i < this.plotArray.length; i++) {
+            // Find the nearest neighbor for the current plot point
+            const nearestNeighbor = this.findNearestNeighbor(this.plotArray[i], i);
+    
+            if (nearestNeighbor !== null) {
+                // Draw a line to the nearest neighbor
+                parentContext.beginPath();
+                parentContext.moveTo(this.plotArray[i].x, this.plotArray[i].y);
+                parentContext.lineTo(nearestNeighbor.x, nearestNeighbor.y);
+                parentContext.stroke();
+            }
         }
-        
+    
+        parentContext.restore();
+    }
+    
+    findNearestNeighbor(point, currentIndex) {
+        let minDistance = Infinity;
+        let nearestNeighbor = null;
+    
+        for (let i = 0; i < this.plotArray.length; i++) {
+            if (i !== currentIndex) {
+                const distance = this.calculateDistance(point, this.plotArray[i]);
+    
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearestNeighbor = this.plotArray[i];
+                }
+            }
+        }
+    
+        return nearestNeighbor;
+    }
+    
+    calculateDistance(point1, point2) {
+        const dx = point2.x - point1.x;
+        const dy = point2.y - point1.y;
+        return Math.sqrt(dx * dx + dy * dy);
     }
 }
 
 const scenes = {
-    a: new Scene({
+    main: new Scene({
         image: null, 
-        cellSize: 10, 
-        drawSize: new Vector(102, 102), 
+        cellSize: 8, 
+        drawSize: new Vector(128, 128), 
         sourceSize: new Vector(256, 256),
-        offset: new Vector(32, 32),
+        offset: new Vector(96, 0),
         colorPalette: [
             RGB.hexToRgb("#EAAF47"),
             RGB.hexToRgb("#40280F"),
             RGB.hexToRgb("#94291F"),
             RGB.hexToRgb("#04AB4E")
         ]}),
+    mask: new Scene({
+        image: null, 
+        cellSize: 8, 
+        drawSize: new Vector(128, 128), 
+        sourceSize: new Vector(256, 256)}),
     noi: new NoiseLayer(),
     plot: new PlotterLayer(),
 };
-
-const currentScene = scenes.a;
 
 const sketch = ({ context, width, height }) => {
     let time = (new Date()).getMilliseconds();
@@ -298,9 +302,10 @@ const sketch = ({ context, width, height }) => {
         context.fillStyle = (RGB.from(params.bgColor)).toString();;
         context.fillRect(0, 0, width, height);
 
-        currentScene.draw(context, playhead);
-
-        scenes.plot.draw(context, playhead);
+        
+        scenes.main.draw(context, playhead);
+        //scenes.mask.draw(context, playhead);
+        //scenes.plot.draw(context, playhead);
 
         lfo.next(playhead);
         params.logg = "playhead:" + playhead + "\nms:" + (Date.now() - time);
@@ -318,10 +323,15 @@ const loadImage = async (url) => {
   };
   
 const start = async () => {
-    currentScene.image = await loadImage('img/winter-1-256.png');
-    currentScene.loadSource();
-    scenes.plot.loadSource(currentScene.brightestBlocks);
+    scenes.main.image = await loadImage('img/winter-car-1.png'); //winter-1-256.png
+    scenes.mask.image = await loadImage('img/winter-car-mask.png'); //winter-1-256.png
+
+    await scenes.main.loadSource();
+    await scenes.mask.loadSource();
     
+    //scenes.plot.loadSource(scenes.main.brightestBlocks);
+
+    scenes.main.applyMask(scenes.mask.rgbData);
 
     lfo = new LFO(1, 1);
     //console.log(img);
