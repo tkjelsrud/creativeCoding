@@ -99,6 +99,7 @@ class Scene {
         this.colorPalette = ("colorPalette" in setup ? setup.colorPalette : null);
         this.offset = ("offset" in setup ? setup.offset : new Vector(0, 0));
         this.brightestBlocks = null;
+        this.modifiers = [];
     }
 
     loadSource() {
@@ -136,19 +137,15 @@ class Scene {
             //rgb.modify(1.1 + (n / 4));
 
             parentContext.save();
+
+            for(let j = 0; j < this.modifiers.length; j++) {
+                rgb = this.modifiers[j].colorMod(rgb, playhead);
+            }
+
             parentContext.fillStyle = rgb.toString();
             parentContext.translate(32, 32);
 
-            const displaceX = random.range(-1, 1) * params.displace * (1 - rgb.getIntensity());
-            const displaceY = random.range(-1, 1) * params.displace * (1 - rgb.getIntensity());
-
-            parentContext.translate(x + displaceX, y + displaceY);
-
-            // Melting test... if bright, pour down
-            //params.colorMelt = (0.09 - playhead) * 20000;
-            //if(params.colorMelt > 0) {
-            //    parentContext.translate(0, rgb.getIntensity() * params.colorMelt);
-            //}
+            parentContext.translate(x, y);
 
             parentContext.beginPath();
             const rad = this.cellSize * params.radius;
@@ -181,7 +178,19 @@ class Scene {
        
         }
     }
+
+    crossFade(fadeData, factor) {
+        for(let i = 0; i < this.rgbData.length; i++) {
+            this.rgbData[i] = (this.rgbData[i]).crossfade(fadeData[i], factor);
+        }
+    }
+
+    addModifier(modifier) {
+        this.modifiers.push(modifier);
+    }
 }
+
+
 
 class NoiseLayer {
     constructor(setup) {}
@@ -268,6 +277,35 @@ class PlotterLayer {
     }
 }
 
+class Modifier {
+    constructor() {
+        this.frame = 0;
+    }
+
+    colorMod(penColor) {
+        return penColor;
+    }
+}
+
+class FadeModifier extends Modifier {
+    constructor(factor) {
+        super();
+        this.factor = factor; // You can customize the modifier with parameters
+        this.frame = 0;
+    }
+
+    colorMod(penColor, playHead) {
+        let newPen = penColor.copy();
+        //newPen.modify(0.9);
+        newPen.modify(this.factor * playHead); //1 + (this.frame / settings.fps));
+        this.frame++;
+        return newPen;
+    }
+}
+
+
+
+
 const scenes = {
     main: new Scene({
         image: null, 
@@ -302,6 +340,7 @@ const sketch = ({ context, width, height }) => {
         context.fillStyle = (RGB.from(params.bgColor)).toString();;
         context.fillRect(0, 0, width, height);
 
+        //scenes.main.crossFade(scenes.mask.rgbData, 0.5);
         
         scenes.main.draw(context, playhead);
         //scenes.mask.draw(context, playhead);
@@ -331,7 +370,9 @@ const start = async () => {
     
     //scenes.plot.loadSource(scenes.main.brightestBlocks);
 
-    scenes.main.applyMask(scenes.mask.rgbData);
+    //scenes.main.applyMask(scenes.mask.rgbData);
+
+    //scenes.main.addModifier(new FadeModifier(0.5));
 
     lfo = new LFO(1, 1);
     //console.log(img);
@@ -340,6 +381,8 @@ const start = async () => {
 
   createPane();
   start();
+
+
 
   /*
 
