@@ -19,6 +19,7 @@
     "jzz": "^1.5.2",
     "riso-colors": "^1.0.1",
     "three": "^0.147.0",
-    "tweakpane": "^3.1.0"
+    "tweakpane": "^3.1.0",
+    "xmldom": "^0.6.0"
   }
 }
